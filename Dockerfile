@@ -17,6 +17,13 @@ COPY src/ ./
 
 COPY data/ ./data/
 
+RUN mkdir -p ./models \
+    && mkdir -p ./logs \
+    && mkdir -p ./output \
+    && mkdir -p ./reports \
+    && mkdir -p ./figures
+
+
 # Copy entrypoint script
 COPY run_app.sh .
 RUN chmod +x run_app.sh

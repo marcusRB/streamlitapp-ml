@@ -1,6 +1,6 @@
 """
 Streamlit Application for CKD Detection Project
-Interactive dashboard for data exploration and analysis
+Interactive dashboard for data exploration, model training and prediction
 """
 
 import streamlit as st
@@ -10,12 +10,16 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
 import sys
+import json
 
 # Add src directory to path for imports
 sys.path.append(str(Path(__file__).parent))
 
 from step01_data_loading import DataLoader
 from step02_data_processing import DataProcessor
+from step03_feature_engineering import FeatureEngineer
+from step04_model_training import ModelTrainer
+from step05_model_prediction import ModelPredictor
 
 # Page configuration
 st.set_page_config(
@@ -50,6 +54,10 @@ def init_session_state():
         st.session_state.data_loaded = False
     if 'data_processed' not in st.session_state:
         st.session_state.data_processed = False
+    if 'features_engineered' not in st.session_state:
+        st.session_state.features_engineered = False
+    if 'models_trained' not in st.session_state:
+        st.session_state.models_trained = False
     if 'df' not in st.session_state:
         st.session_state.df = None
 
@@ -63,7 +71,7 @@ def load_data_section():
     with col1:
         data_path = st.text_input(
             "Data Path", 
-            value="../../data/raw/chronic_kindey_disease.csv",
+            value="data/raw/chronic_kindey_disease.csv",
             help="Path to the raw CSV file"
         )
     
@@ -86,11 +94,9 @@ def load_data_section():
                 except Exception as e:
                     st.error(f"❌ Error loading data: {str(e)}")
     
-    # Display loaded data info
     if st.session_state.data_loaded:
         st.divider()
         
-        # Metrics
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -107,7 +113,7 @@ def load_data_section():
         # Show data preview
         with st.expander("📊 Data Preview", expanded=True):
             st.dataframe(st.session_state.df.head(10), use_container_width=True)
-        
+
         # Show data types
         with st.expander("📋 Data Types"):
             dtype_df = pd.DataFrame({
@@ -133,27 +139,19 @@ def process_data_section():
         if st.button("Process Data", type="primary", use_container_width=True):
             with st.spinner("Processing data..."):
                 try:
-                    # Create temporary processor
                     processor = DataProcessor()
                     processor.df = st.session_state.df.copy()
-                    
-                    # Clean data
                     processor.clean_data()
                     st.session_state.df = processor.df
                     st.session_state.data_processed = True
-                    
                     st.success("✅ Data processed successfully!")
-                    
                 except Exception as e:
                     st.error(f"❌ Error processing data: {str(e)}")
     
     if st.session_state.data_processed:
         st.divider()
-        
-        # Processing results
         st.subheader("Processing Results")
         
-        # Target distribution
         col1, col2 = st.columns(2)
         
         with col1:
@@ -165,11 +163,241 @@ def process_data_section():
             st.write("**Target Statistics**")
             for status, count in target_counts.items():
                 percentage = (count / len(st.session_state.df)) * 100
-                st.metric(
-                    label=f"{status.upper()}", 
-                    value=count, 
-                    delta=f"{percentage:.1f}%"
-                )
+                st.metric(label=f"{status.upper()}", value=count, delta=f"{percentage:.1f}%")
+
+
+def feature_engineering_section():
+    """Feature engineering section"""
+    st.header("🔧 Feature Engineering")
+    
+    if not st.session_state.data_processed:
+        st.warning("⚠️ Please process data first!")
+        return
+    
+    st.info("This step will create two datasets: **Imputed** (for Gradient Boosting) and **Normalized** (for KNN/SVM)")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("Create Imputed Dataset", use_container_width=True):
+            with st.spinner("Creating imputed dataset..."):
+                try:
+                    engineer = FeatureEngineer()
+                    df_imputed = engineer.process_pipeline_imputed()
+                    st.success("✅ Imputed dataset created!")
+                    st.dataframe(df_imputed.head(), use_container_width=True)
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+    
+    with col2:
+        if st.button("Create Normalized Dataset", use_container_width=True):
+            with st.spinner("Creating normalized dataset..."):
+                try:
+                    engineer = FeatureEngineer()
+                    df_normalized = engineer.process_pipeline_normalized()
+                    st.success("✅ Normalized dataset created!")
+                    st.dataframe(df_normalized.head(), use_container_width=True)
+                    st.session_state.features_engineered = True
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+    
+    # Show feature statistics if available
+    stats_path = Path('reports/feature_engineering_stats.json')
+    if stats_path.exists():
+        with st.expander("📊 Feature Engineering Statistics"):
+            with open(stats_path, 'r') as f:
+                stats = json.load(f)
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Features", stats.get('total_features', 'N/A'))
+            with col2:
+                st.metric("Missing Values", stats.get('missing_values', 'N/A'))
+            with col3:
+                st.metric("Data Shape", str(stats.get('data_shape', 'N/A')))
+            
+            st.write("**Selected Features:**")
+            st.write(", ".join(stats.get('feature_list', [])))
+
+
+def model_training_section():
+    """Model training section"""
+    st.header("🤖 Model Training")
+    
+    if not st.session_state.features_engineered:
+        st.warning("⚠️ Please complete feature engineering first!")
+        return
+    
+    st.write("Train multiple models: KNN, SVM, Gradient Boosting, and Histogram Gradient Boosting")
+    
+    # Model selection
+    models_to_train = st.multiselect(
+        "Select models to train:",
+        ["KNN", "SVM", "GradientBoosting", "HistGradientBoosting"],
+        default=["KNN", "SVM"]
+    )
+    
+    if st.button("Train Selected Models", type="primary", use_container_width=True):
+        if not models_to_train:
+            st.warning("Please select at least one model!")
+            return
+        
+        trainer = ModelTrainer()
+        results = {}
+        
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        total_models = len(models_to_train)
+        
+        for idx, model_name in enumerate(models_to_train):
+            status_text.text(f"Training {model_name}... ({idx+1}/{total_models})")
+            
+            try:
+                if model_name in ["KNN", "SVM"]:
+                    X_train, X_test, y_train, y_test = trainer.load_data('data/processed/ckd_normalized.csv')
+                else:
+                    X_train, X_test, y_train, y_test = trainer.load_data('data/processed/ckd_imputed.csv')
+                
+                if model_name == "KNN":
+                    result = trainer.train_knn(X_train, X_test, y_train, y_test)
+                elif model_name == "SVM":
+                    result = trainer.train_svm(X_train, X_test, y_train, y_test)
+                elif model_name == "GradientBoosting":
+                    result = trainer.train_gradient_boosting_imputed(X_train, X_test, y_train, y_test)
+                elif model_name == "HistGradientBoosting":
+                    result = trainer.train_hist_gradient_boosting(X_train, X_test, y_train, y_test)
+                
+                results[model_name] = result
+                st.success(f"✅ {model_name} trained! F1-Score: {result['f1_score']:.4f}")
+                
+            except Exception as e:
+                st.error(f"❌ Error training {model_name}: {str(e)}")
+            
+            progress_bar.progress((idx + 1) / total_models)
+        
+        status_text.text("Training complete!")
+        st.session_state.models_trained = True
+        
+        # Display results
+        if results:
+            st.divider()
+            st.subheader("Training Results")
+            
+            # Create comparison dataframe
+            comparison_df = pd.DataFrame({
+                'Model': list(results.keys()),
+                'Accuracy': [r['accuracy'] for r in results.values()],
+                'Precision': [r['precision'] for r in results.values()],
+                'Recall': [r['recall'] for r in results.values()],
+                'F1-Score': [r['f1_score'] for r in results.values()]
+            })
+            
+            st.dataframe(
+                comparison_df.style.highlight_max(axis=0, subset=['Accuracy', 'Precision', 'Recall', 'F1-Score']),
+                use_container_width=True
+            )
+            
+            # Show confusion matrices
+            st.subheader("Confusion Matrices")
+            cols = st.columns(len(results))
+            
+            for idx, (model_name, result) in enumerate(results.items()):
+                with cols[idx]:
+                    cm_path = Path(f'figures/models/{model_name.lower()}_confusion_matrix.png')
+                    if cm_path.exists():
+                        st.image(str(cm_path), caption=model_name)
+
+
+def prediction_section():
+    """Model prediction section"""
+    st.header("🔮 Make Predictions")
+    
+    if not st.session_state.models_trained:
+        st.warning("⚠️ Please train models first!")
+        return
+    
+    # Initialize predictor
+    try:
+        predictor = ModelPredictor()
+        predictor.load_all_models()
+    except Exception as e:
+        st.error(f"❌ Error loading models: {str(e)}")
+        return
+    
+    st.subheader("Enter Patient Data")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        hemo = st.number_input("Hemoglobin (g/dL)", min_value=0.0, max_value=20.0, value=15.4, step=0.1)
+        sg = st.number_input("Specific Gravity", min_value=1.000, max_value=1.030, value=1.020, step=0.005, format="%.3f")
+        sc = st.number_input("Serum Creatinine (mg/dL)", min_value=0.0, max_value=20.0, value=1.2, step=0.1)
+    
+    with col2:
+        rbcc = st.number_input("Red Blood Cell Count (millions/cmm)", min_value=0.0, max_value=10.0, value=5.2, step=0.1)
+        pcv = st.number_input("Packed Cell Volume (%)", min_value=0.0, max_value=60.0, value=44.0, step=1.0)
+        htn = st.selectbox("Hypertension", [0, 1], format_func=lambda x: "No" if x == 0 else "Yes")
+    
+    with col3:
+        dm = st.selectbox("Diabetes Mellitus", [0, 1], format_func=lambda x: "No" if x == 0 else "Yes")
+        bp = st.number_input("Blood Pressure (mmHg)", min_value=0.0, max_value=200.0, value=80.0, step=1.0)
+        age = st.number_input("Age (years)", min_value=0, max_value=120, value=48, step=1)
+    
+    patient_data = {
+        'hemo': hemo, 'sg': sg, 'sc': sc, 'rbcc': rbcc, 'pcv': pcv,
+        'htn': float(htn), 'dm': float(dm), 'bp': bp, 'age': float(age)
+    }
+    
+    if st.button("Predict with All Models", type="primary", use_container_width=True):
+        with st.spinner("Making predictions..."):
+            try:
+                results = predictor.predict_with_all_models(patient_data)
+                
+                st.divider()
+                st.subheader("Prediction Results")
+                
+                # Individual model predictions
+                cols = st.columns(len(predictor.models))
+                
+                for idx, (model_name, result) in enumerate(results.items()):
+                    if model_name != 'consensus' and 'prediction' in result:
+                        with cols[idx]:
+                            prediction = result['prediction'].upper()
+                            color = "🔴" if prediction == "CKD" else "🟢"
+                            st.markdown(f"### {color} {model_name}")
+                            st.markdown(f"**{prediction}**")
+                            
+                            if result['probability']:
+                                prob = result['probability'][result['prediction']]
+                                st.progress(prob)
+                                st.caption(f"Confidence: {prob:.1%}")
+                
+                # Consensus
+                if 'consensus' in results:
+                    st.divider()
+                    st.subheader("🎯 Consensus Prediction")
+                    
+                    consensus = results['consensus']['prediction'].upper()
+                    confidence = results['consensus']['confidence']
+                    agreement = results['consensus']['agreement']
+                    
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        if consensus == "CKD":
+                            st.error(f"### 🔴 {consensus}")
+                        else:
+                            st.success(f"### 🟢 {consensus}")
+                    
+                    with col2:
+                        st.metric("Agreement", agreement)
+                    
+                    with col3:
+                        st.metric("Confidence", f"{confidence:.1%}")
+                
+            except Exception as e:
+                st.error(f"❌ Error making prediction: {str(e)}")
 
 
 def analysis_section():
@@ -180,7 +408,6 @@ def analysis_section():
         st.warning("⚠️ Please load data first!")
         return
     
-    # Analysis tabs
     tab1, tab2, tab3 = st.tabs(["Missing Values", "Statistical Summary", "Distributions"])
     
     with tab1:
@@ -235,7 +462,6 @@ def analysis_section():
     with tab3:
         st.subheader("Feature Distributions")
         
-        # Feature selector
         numeric_cols = st.session_state.df.select_dtypes(include=[np.number]).columns.tolist()
         
         if numeric_cols:
@@ -273,29 +499,32 @@ def sidebar():
         st.subheader("Navigation")
         page = st.radio(
             "Go to",
-            ["Data Loading", "Data Processing", "Data Analysis"],
+            ["Data Loading", "Data Processing", "Data Analysis", "Feature Engineering", "Model Training", "Predictions"],
             label_visibility="collapsed"
         )
         
         st.markdown("---")
         
-        st.subheader("Status")
-        if st.session_state.data_loaded:
-            st.success("✅ Data Loaded")
-        else:
-            st.info("⏳ Data Not Loaded")
+        st.subheader("Pipeline Status")
+        status_items = [
+            ("Data Loaded", st.session_state.data_loaded),
+            ("Data Processed", st.session_state.data_processed),
+            ("Features Engineered", st.session_state.features_engineered),
+            ("Models Trained", st.session_state.models_trained)
+        ]
         
-        if st.session_state.data_processed:
-            st.success("✅ Data Processed")
-        else:
-            st.info("⏳ Data Not Processed")
+        for label, status in status_items:
+            if status:
+                st.success(f"✅ {label}")
+            else:
+                st.info(f"⏳ {label}")
         
         st.markdown("---")
         
         st.subheader("About")
         st.info(
             "**CKD Detection Dashboard**\n\n"
-            "Interactive tool for Chronic Kidney Disease detection analysis.\n\n"
+            "End-to-end ML pipeline for Chronic Kidney Disease detection.\n\n"
             "Built with Streamlit 🎈"
         )
         
@@ -304,22 +533,24 @@ def sidebar():
 
 def main():
     """Main application"""
-    # Initialize session state
     init_session_state()
     
-    # Header
     st.markdown('<h1 class="main-header">🏥 Chronic Kidney Disease Detection Dashboard</h1>', unsafe_allow_html=True)
     
-    # Sidebar
     page = sidebar()
     
-    # Main content based on selected page
     st.markdown("---")
     
     if page == "Data Loading":
         load_data_section()
     elif page == "Data Processing":
         process_data_section()
+    elif page == "Feature Engineering":
+        feature_engineering_section()
+    elif page == "Model Training":
+        model_training_section()
+    elif page == "Predictions":
+        prediction_section()
     elif page == "Data Analysis":
         analysis_section()
 
