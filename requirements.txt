@@ -1,0 +1,22 @@
+# Python 3.11 Requirements for CKD Detection Project
+
+# Core Data Processing
+pandas==2.1.4
+numpy==1.26.2
+
+# Visualization
+matplotlib==3.8.2
+seaborn==0.13.0
+
+# Utilities
+pathlib2==2.3.7.post1
+
+jupyter==1.0.0
+ipython==8.18.1
+
+# For future ML work (optional)
+scikit-learn==1.3.2
+
+# Streamlit Application
+streamlit==1.29.0
+plotly==5.18.0
