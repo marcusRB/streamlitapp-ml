@@ -36,4 +36,7 @@ USER appuser
 
 EXPOSE 8000 8502
 
+# Health check
+HEALTHCHECK CMD curl --fail http://localhost:8502/_stcore/health
+
 ENTRYPOINT ["./run_app.sh"]
