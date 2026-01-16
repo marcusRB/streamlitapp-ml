@@ -71,7 +71,7 @@ def load_data_section():
     with col1:
         data_path = st.text_input(
             "Data Path", 
-            value="data/raw/chronic_kindey_disease.csv",
+            value="<TYPE HERE THE DATA PATH> like data/raw/chronic_kindey_disease.csv",
             help="Path to the raw CSV file"
         )
     
@@ -111,8 +111,8 @@ def load_data_section():
             st.metric("Categorical Features", categorical_cols)
         
         # Show data preview
-        with st.expander("📊 Data Preview", expanded=True):
-            st.dataframe(st.session_state.df.head(10), use_container_width=True)
+        with st.expander("📊 Data Preview (TOP 20)", expanded=True):
+            st.dataframe(st.session_state.df.head(20), use_container_width=True)
 
         # Show data types
         with st.expander("📋 Data Types"):
@@ -124,6 +124,17 @@ def load_data_section():
             })
             st.dataframe(dtype_df, use_container_width=True)
 
+
+        st.divider()
+        col1 = st.columns(1)
+
+        # Show data informations
+        with st.expander("📊 Data Information", expanded=True):
+            datainfo_path = "data/raw/chronic_kindey_disease_info.txt"
+            uploaded_file = st.file_uploader(datainfo_path)
+            if uploaded_file:
+                for line in uploaded_file:
+                    st.write(line)
 
 def process_data_section():
     """Data processing section"""

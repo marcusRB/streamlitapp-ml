@@ -45,9 +45,9 @@ class ModelTrainerMLflow:
     
     def __init__(self, experiment_name: str = "CKD_Detection"):
         """Initialize ModelTrainer with MLflow"""
-        self.models_dir = Path('../../models')
-        self.figures_dir = Path('../../figures/models')
-        self.reports_dir = Path('../../reports/models')
+        self.models_dir = Path('models')
+        self.figures_dir = Path('figures/models')
+        self.reports_dir = Path('reports/models')
         
         # Create directories
         self.models_dir.mkdir(parents=True, exist_ok=True)
@@ -572,7 +572,7 @@ def main():
     print("TRAINING MODELS WITH NORMALIZED DATA")
     print("="*60)
     
-    X_train, X_test, y_train, y_test = trainer.load_data('../../data/processed/ckd_normalized.csv')
+    X_train, X_test, y_train, y_test = trainer.load_data('data/processed/ckd_normalized.csv')
     
     print("\n[1/4] Training KNN...")
     knn_results = trainer.train_knn(X_train, X_test, y_train, y_test)
@@ -589,7 +589,7 @@ def main():
     print("TRAINING MODELS WITH IMPUTED DATA")
     print("="*60)
     
-    X_train, X_test, y_train, y_test = trainer.load_data('../../data/processed/ckd_imputed.csv')
+    X_train, X_test, y_train, y_test = trainer.load_data('data/processed/ckd_imputed.csv')
     
     print("\n[3/4] Training Gradient Boosting...")
     gb_results = trainer.train_gradient_boosting_imputed(X_train, X_test, y_train, y_test)

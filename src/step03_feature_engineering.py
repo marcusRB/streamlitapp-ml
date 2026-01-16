@@ -38,7 +38,7 @@ class FeatureEngineer:
         self.target = 'status'
         
         # Output directories
-        self.processed_dir = Path('data/processed')
+        self.processed_dir = Path('data/samples')
         self.reports_dir = Path('reports')
         
         self.processed_dir.mkdir(parents=True, exist_ok=True)
@@ -199,7 +199,7 @@ class FeatureEngineer:
         
         return stats
     
-    def save_imputed_data(self, output_path: str = 'data/processed/ckd_imputed.csv'):
+    def save_imputed_data(self, output_path: str = 'data/samples/ckd_imputed.csv'):
         """
         Save data with imputed values (not normalized)
         
@@ -210,7 +210,7 @@ class FeatureEngineer:
         self.df.to_csv(output_path, index=False)
         logger.info(f"Imputed data saved to {output_path}")
     
-    def save_normalized_data(self, output_path: str = 'data/processed/ckd_normalized.csv'):
+    def save_normalized_data(self, output_path: str = 'data/samples/ckd_normalized.csv'):
         """
         Save normalized data
         
