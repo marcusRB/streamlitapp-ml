@@ -2,11 +2,30 @@ FROM python:3.11
 
 # Install system dependencies ONCE
 
-RUN apt-get update && \
-    apt-get install -y curl && \
-    rm -rf /var/lib/apt/lists/*
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    MPLCONFIGDIR=/app/.matplotlib \
+    TMPDIR=/app/.tmp
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+
+RUN mkdir -p /app/.matplotlib /app/.tmp
+
+# Create necessary directories
+RUN mkdir -p ./models \
+    && mkdir -p ./logs \
+    && mkdir -p ./output \
+    && mkdir -p ./reports \
+    && mkdir -p ./figures \
+    && mkdir -p ./data
 
 # Copy requirements first for better caching
 COPY requirements.txt .
@@ -16,12 +35,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./
 
 COPY data/ ./data/
-
-RUN mkdir -p ./models \
-    && mkdir -p ./logs \
-    && mkdir -p ./output \
-    && mkdir -p ./reports \
-    && mkdir -p ./figures
 
 
 # Copy entrypoint script
@@ -34,6 +47,9 @@ RUN useradd -m -u 1001 appuser && \
 
 USER appuser
 
-EXPOSE 8000 8502
+EXPOSE 5000 8000 8502
+
+# Health check
+HEALTHCHECK CMD curl --fail http://localhost:8502/_stcore/health
 
 ENTRYPOINT ["./run_app.sh"]

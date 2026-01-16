@@ -1,0 +1,27 @@
+.
+├── Dockerfile
+├── Models_Yudi.ipynb
+├── README.md
+├── STREAMLIT_SETUP.md
+├── data
+│   ├── processed
+│   │   ├── ckd_imputed.csv
+│   │   └── ckd_normalized.csv
+│   └── raw
+│       ├── chronic_kidney_disease_info.txt
+│       └── chronic_kindey_disease.csv
+├── requirements.txt
+├── run_app.sh
+├── src
+│   ├── __init__.py
+│   ├── app.py
+│   ├── step01_data_loading.py
+│   ├── step02_data_processing.py
+│   ├── step03_feature_engineering.py
+│   ├── step04_model_training.py
+│   ├── step05_model_prediction.py
+│   ├── step06_mlflow_config.py
+│   └── streamlit_app.code-workspace
+└── tree_structure.txt
+
+5 directories, 20 files
