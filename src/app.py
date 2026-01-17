@@ -11,6 +11,7 @@ import seaborn as sns
 from pathlib import Path
 import sys
 import json
+from io import StringIO
 
 # Add src directory to path for imports
 sys.path.append(str(Path(__file__).parent))
@@ -71,7 +72,7 @@ def load_data_section():
     with col1:
         data_path = st.text_input(
             "Data Path", 
-            value="<TYPE HERE THE DATA PATH> like data/raw/chronic_kindey_disease.csv",
+            value="data/raw/chronic_kindey_disease.csv",
             help="Path to the raw CSV file"
         )
     
@@ -129,12 +130,12 @@ def load_data_section():
         col1 = st.columns(1)
 
         # Show data informations
-        with st.expander("📊 Data Information", expanded=True):
+        with st.expander("ℹ️ Data Information", expanded=True):
             datainfo_path = "data/raw/chronic_kindey_disease_info.txt"
-            uploaded_file = st.file_uploader(datainfo_path)
-            if uploaded_file:
-                for line in uploaded_file:
-                    st.write(line)
+            uploaded_file = st.file_uploader(datainfo_path,)
+            if uploaded_file is not None:
+                stringio = StringIO(uploaded_file.getvalue().decode("utf-8"))
+                st.write(stringio.read())
 
 def process_data_section():
     """Data processing section"""
@@ -184,6 +185,7 @@ def feature_engineering_section():
     if not st.session_state.data_processed:
         st.warning("⚠️ Please process data first!")
         return
+        
     
     st.info("This step will create two datasets: **Imputed** (for Gradient Boosting) and **Normalized** (for KNN/SVM)")
     
@@ -241,12 +243,17 @@ def model_training_section():
     
     st.write("Train multiple models: KNN, SVM, Gradient Boosting, and Histogram Gradient Boosting")
     
+    tab1, tab2, tab3 = st.tabs(["Training Model", "Features importance", "Model Evaluation"])
+    
+    with tab1:
+        st.subheader("Training Models")
+
     # Model selection
     models_to_train = st.multiselect(
         "Select models to train:",
         ["KNN", "SVM", "GradientBoosting", "HistGradientBoosting"],
         default=["KNN", "SVM"]
-    )
+        )
     
     if st.button("Train Selected Models", type="primary", use_container_width=True):
         if not models_to_train:
@@ -289,36 +296,81 @@ def model_training_section():
         
         status_text.text("Training complete!")
         st.session_state.models_trained = True
-        
-        # Display results
-        if results:
-            st.divider()
-            st.subheader("Training Results")
-            
-            # Create comparison dataframe
-            comparison_df = pd.DataFrame({
-                'Model': list(results.keys()),
-                'Accuracy': [r['accuracy'] for r in results.values()],
-                'Precision': [r['precision'] for r in results.values()],
-                'Recall': [r['recall'] for r in results.values()],
-                'F1-Score': [r['f1_score'] for r in results.values()]
-            })
-            
-            st.dataframe(
-                comparison_df.style.highlight_max(axis=0, subset=['Accuracy', 'Precision', 'Recall', 'F1-Score']),
-                use_container_width=True
-            )
-            
-            # Show confusion matrices
-            st.subheader("Confusion Matrices")
-            cols = st.columns(len(results))
-            
-            for idx, (model_name, result) in enumerate(results.items()):
-                with cols[idx]:
-                    cm_path = Path(f'figures/models/{model_name.lower()}_confusion_matrix.png')
-                    if cm_path.exists():
-                        st.image(str(cm_path), caption=model_name)
 
+        with tab2:
+            st.subheader("Feature Importance")
+
+            if results.get('GradientBoosting'):
+                st.write("**Gradient Boosting Feature Importance**")
+                fig, ax = plt.subplots(figsize=(10, 6))
+                feature_importances = results['GradientBoosting']['feature_importances']
+                features = results['GradientBoosting']['feature_names']
+                sorted_idx = np.argsort(feature_importances)[::-1]
+                ax.barh(np.array(features)[sorted_idx], np.array(feature_importances)[sorted_idx], color='teal')
+                ax.set_xlabel('Importance')
+                ax.set_title('Feature Importance - Gradient Boosting')
+                st.pyplot(fig)
+                plt.close()
+            else:
+                st.info("Gradient Boosting model not trained, cannot show feature importance.")
+            
+            if results.get('HistGradientBoosting'):
+                st.write("**Histogram Gradient Boosting Feature Importance**")
+                fig, ax = plt.subplots(figsize=(10, 6))
+                feature_importances = results['HistGradientBoosting']['feature_importances']
+                features = results['HistGradientBoosting']['feature_names']
+                sorted_idx = np.argsort(feature_importances)[::-1]
+                ax.barh(np.array(features)[sorted_idx], np.array(feature_importances)[sorted_idx], color='orange')
+                ax.set_xlabel('Importance')
+                ax.set_title('Feature Importance - Histogram Gradient Boosting')
+                st.pyplot(fig)
+                plt.close() 
+            else:
+                st.info("Histogram Gradient Boosting model not trained, cannot show feature importance.")   
+
+            st.write("**Saved Feature Importance Plots**")
+
+            if results.get('KNN') or results.get('SVM'):
+                st.write("KNN and SVM do not provide feature importance directly.")
+            
+            feature_importance_path = Path('figures/models/feature_importance.png')
+            if feature_importance_path.exists():
+                st.image(str(feature_importance_path), caption="Feature Importance", use_column_width=True)
+            else:
+                st.info("Feature importance plot not available.")
+        
+        with tab3:
+            st.subheader("Model Evaluation")
+
+            # Display results
+            if results:
+                st.subheader("Training Results")
+                
+                # Create comparison dataframe
+                comparison_df = pd.DataFrame({
+                    'Model': list(results.keys()),
+                    'Accuracy': [r['accuracy'] for r in results.values()],
+                    'Precision': [r['precision'] for r in results.values()],
+                    'Recall': [r['recall'] for r in results.values()],
+                    'F1-Score': [r['f1_score'] for r in results.values()]
+                })
+                
+                st.dataframe(
+                    comparison_df.style.highlight_max(axis=0, subset=['Accuracy', 'Precision', 'Recall', 'F1-Score']),
+                    use_container_width=True
+                )
+                
+                # Show confusion matrices
+                st.subheader("Confusion Matrices")
+                cols = st.columns(len(results))
+                
+                for idx, (model_name, result) in enumerate(results.items()):
+                    with cols[idx]:
+                        cm_path = Path(f'figures/models/{model_name.lower()}_confusion_matrix.png')
+                        if cm_path.exists():
+                            st.image(str(cm_path), caption=model_name)
+            else:
+                st.info("No training results to display.")
 
 def prediction_section():
     """Model prediction section"""
