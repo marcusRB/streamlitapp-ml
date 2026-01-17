@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # FastAPI Backend
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: ckd_backend_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app/backend
+      - ./data:/app/data
+      - ./backend/ml/models:/app/backend/ml/models
+      - ./mlruns:/app/mlruns
+      - ./reports:/app/reports
+      - ./figures:/app/figures
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+    restart: unless-stopped
+    networks:
+      - ckd_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # MLflow Tracking Server
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.9.2
+    container_name: ckd_mlflow_server
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlruns:/mlflow/mlruns
+      - ./backend/ml/models:/mlflow/models
+    command: >
+      mlflow server
+      --backend-store-uri file:///mlflow/mlruns
+      --default-artifact-root /mlflow/mlruns/artifacts
+      --host 0.0.0.0
+      --port 5000
+    restart: unless-stopped
+    networks:
+      - ckd_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # Streamlit Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: ckd_streamlit_app
+    ports:
+      - "8502:8502"
+    volumes:
+      - ./frontend:/app/frontend
+      - ./backend:/app/backend
+      - ./data:/app/data
+      - ./reports:/app/reports
+      - ./figures:/app/figures
+    environment:
+      - PYTHONUNBUFFERED=1
+      - BACKEND_URL=http://backend:8000
+      - MLFLOW_URL=http://mlflow:5000
+    restart: unless-stopped
+    networks:
+      - ckd_network
+    depends_on:
+      - backend
+      - mlflow
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8502/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  ckd_network:
+    driver: bridge
+    name: ckd_network
+
+volumes:
+  mlruns:
+  models:

@@ -21,6 +21,15 @@ echo "📂 Current directory: $(pwd)"
 echo "🚀 Launching Streamlit application..."
 echo ""
 
+# Start MLFlow UI in the background
+echo "🚀 Starting MLFlow UI in the background..."
+mlflow ui --host 0.0.0.0 --port 5000
+
+# Start FastAPI server in the background
+echo "🚀 Starting FastAPI server in the background..."
+python step08_model_inference.py
+
+# Start Streamlit app
 streamlit run app.py --server.port 8502
 
 # Alternative: Run with custom port

@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  # Backend API Service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ckd_backend
+    command: uvicorn backend.api.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app/backend
+      - ./data:/app/data
+      - ./backend/ml/models:/app/backend/ml/models
+      - ./mlruns:/app/mlruns
+      - ./reports:/app/reports
+      - ./figures:/app/figures
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+    networks:
+      - ckd_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # MLflow Tracking Server
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.9.2
+    container_name: ckd_mlflow
+    command: >
+      mlflow server
+      --backend-store-uri file:///mlflow/mlruns
+      --default-artifact-root /mlflow/mlruns/artifacts
+      --host 0.0.0.0
+      --port 5000
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlruns:/mlflow/mlruns
+      - ./backend/ml/models:/mlflow/models
+    networks:
+      - ckd_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # Streamlit Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ckd_frontend
+    command: streamlit run frontend/app.py --server.port 8501 --server.address 0.0.0.0 --server.headless true
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./frontend:/app/frontend
+      - ./backend:/app/backend
+      - ./data:/app/data
+      - ./reports:/app/reports
+      - ./figures:/app/figures
+    environment:
+      - PYTHONUNBUFFERED=1
+      - BACKEND_URL=http://backend:8000
+      - MLFLOW_URL=http://mlflow:5000
+    networks:
+      - ckd_network
+    depends_on:
+      - backend
+      - mlflow
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  ckd_network:
+    driver: bridge
+    name: ckd_network
+
+volumes:
+  mlruns_data:
+  models_data:
