@@ -21,3 +21,10 @@ mlflow==2.9.2
 # Streamlit Application
 streamlit==1.29.0
 plotly==5.18.0
+
+# FastAPI & Server
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+python-multipart==0.0.6
+requests==2.31.0

@@ -51,7 +51,10 @@ class ModelTrainer:
         # Store results
         self.results = {}
     
-    def load_data(self, data_path: str, test_size: float = 0.2, random_state: int = 42) -> Tuple:
+    def load_data(self,
+                    data_path: str,
+                    test_size: float = 0.2,
+                    random_state: int = 42) -> Tuple:
         """
         Load data and split into train/test sets
         
@@ -68,10 +71,19 @@ class ModelTrainer:
         df = pd.read_csv(data_path)
         
         # Separate features and target
-        y = df['status']
-        X = df.drop(['status'], axis=1)
-        
+        # y = df['status']
+        # X = df.drop(['status'], axis=1)
+        df = pd.read_csv(data_path)
+        df['status'] = df['status'].map({'ckd': 1, 'notckd': 0})
+        df = df[['hemo', 'sg', 'sc', 'rbcc', 'pcv', 
+                    'htn', 'dm', 'bp', 'age', 'status']]
+
+        y = df['status'] #as the df comes from a csv, y is treated as str. We convert it to simplify future calculations
+        X = df.drop(['status'], axis=1) # drop all varribales that are not related to the analysis 
+
         # Split data
+        """Split into Training (80%) and Test (20%)
+        'stratify' ensures both sets have the same percentage of CKD vs NotCKD"""
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=test_size, random_state=random_state, stratify=y
         )
@@ -361,7 +373,7 @@ class ModelTrainer:
         return summary
 
 
-def main():
+def main(data_path: str) -> None:
     """Main execution function"""
     logger.info("Starting model training pipeline...")
     
@@ -372,7 +384,7 @@ def main():
     print("TRAINING MODELS WITH NORMALIZED DATA (KNN, SVM)")
     print("="*60)
     
-    X_train, X_test, y_train, y_test = trainer.load_data('data/processed/ckd_normalized.csv')
+    X_train, X_test, y_train, y_test = trainer.load_data(data_path)
     
     # KNN
     print("\n[1/4] Training KNN...")
@@ -391,7 +403,7 @@ def main():
     print("TRAINING MODELS WITH IMPUTED DATA (Gradient Boosting)")
     print("="*60)
     
-    X_train, X_test, y_train, y_test = trainer.load_data('data/processed/ckd_imputed.csv')
+    X_train, X_test, y_train, y_test = trainer.load_data(data_path)
     
     # Gradient Boosting
     print("\n[3/4] Training Gradient Boosting...")
